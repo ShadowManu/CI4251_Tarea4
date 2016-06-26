@@ -1,66 +1,80 @@
 module Person
 ( Genre(Man, Woman, Clean)
 , Person(Person)
+, genre
+, duration
+, action
 , genPerson
 ) where
 
 import Control.Concurrent
 import Test.QuickCheck
 
-import Locks
+---- CONSTANTS
 
----- Data Types
+minSeconds :: Int
+minSeconds = 1
 
-data Genre = Man | Woman | Clean deriving Show
-data Person = Person Genre (Locks -> IO ())
+maxSeconds :: Int
+maxSeconds = 3
+
+manWeight :: Int
+manWeight = 49
+
+womanWeight :: Int
+womanWeight = 49
+
+cleanWeight :: Int
+cleanWeight = 2
+
+---- DATA TYPES
+
+data Genre = Man | Woman | Clean deriving (Eq, Show)
+data Person = Person
+  { genre :: Genre
+  , duration :: Double
+  , action :: IO () }
+
 type Time = Int
 
 ---- HELPER FUNCTIONS
 
 -- Helper function to represent seconds as microseconds
-asMicro :: Int -> Int
-asMicro n = n * (10 ^ (6 :: Int))
+toMicro :: Int -> Int
+toMicro n = n * (10 ^ (6 :: Int))
+
+-- Helper function to represent microseconds as floating seconds
+toSeconds :: Int -> Double
+toSeconds n = fromIntegral n / (10 ^ (6 :: Int))
+
+-- PERSON INSTANCES
+
+instance Show Person where
+  show p = "Person " ++ show (genre p) ++ " " ++ show (duration p)
 
 ---- PERSON ACTIONS
 
-manIO :: Locks -> Time -> IO ()
-manIO lock time = do
-  _ <- takeMVar $ enter lock -- Get ready to enter
-  n <- takeMVar $ number lock -- Check the number of people inside
-  putStrLn $ "I've found " ++ show n ++ "persons inside!"-- TODO DEBUGGING
-
-  if n < 3
-    then -- If room is available
-      putMVar (number lock) (n+1) -- Say you're entering
-
-    else do -- If not, wait for availability
-      putMVar (number lock) n -- Put the number back
-      takeMVar $ available lock -- Wait for someone to leave
-      modifyMVar_ (number lock) $ \num -> return $ num+1 -- Say you're entering
-
-  putMVar (enter lock) () -- Let others get ready to enter
-  threadDelay time -- Clean your face and flush your bladder
-
-  modifyMVar_ (number lock) $ \num -> return $ num-1 -- Say you're leaving
-  _ <- tryPutMVar (available lock) ()-- Also let them know a slot is available
-
-  putStrLn "I FINISHED BITCHES!"-- TODO JUST DEBUGGING
-  return ()
+-- By default, a person just waits a specified time
+defAction :: Time -> IO ()
+defAction = threadDelay
 
 ---- GENERATOR FUNCTIONS
 
 -- Generator for the person genre with problem-set probablities
 genGenre :: Gen Genre
-genGenre = frequency [(49, return Man), (49, return Woman), (2, return Clean)]
+genGenre = frequency
+  [ (manWeight, return Man)
+  , (womanWeight, return Woman)
+  , (cleanWeight, return Clean) ]
 
 -- Generator for the random time that a person stays in the bathroom, in microseconds
 -- Range chosen is between 1 and 3 seconds
 genTime :: Gen Time
-genTime = choose (asMicro 1, asMicro 3)
+genTime = choose (toMicro minSeconds, toMicro maxSeconds)
 
 -- Generator for the people entering the bathroom
 genPerson :: Gen Person
 genPerson = do
-  genre <- genGenre
-  time <- genTime
-  return $ Person genre $ \lock -> manIO lock time
+  g <- genGenre
+  t <- genTime
+  return $ Person g (toSeconds t) (defAction t)
