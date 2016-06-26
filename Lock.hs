@@ -1,18 +1,14 @@
 module Lock
 ( Lock(Lock)
-, newLock
-, askLock
-, dropLock
+, newL
+, infoL
+, askL
+, dropL
 ) where
 
 import Control.Concurrent.MVar
 
-import Person (Genre)
-
----- CONSTANTS
-
-top :: Int
-top = 3
+import Person (Genre(Man, Woman, Clean))
 
 ---- DATA TYPES
 
@@ -24,23 +20,39 @@ data Lock = Lock
 
 ---- LOCK FUNCTIONS
 
+-- Defines a top based on genre
+top :: Genre -> Int
+top Man = 3
+top Woman = 3
+top Clean = 1
+
 -- Creates a new lock structure
-newLock :: IO Lock
-newLock = do
+newL :: IO Lock
+newL = do
   g <- newMVar Nothing
   n <- newMVar 0
   f <- newMVar ()
   e <- newMVar ()
   return $ Lock g n f e
 
+-- Returns info exisiting on the Locks
+infoL :: Lock -> IO (Maybe Genre, Int)
+infoL lock = do
+  gen <- takeMVar (genre lock)
+  num <- takeMVar (number lock)
+  putMVar (number lock) num
+  putMVar (genre lock) gen
+  return (gen, num)
+
 -- Process the asking for a lock
-askLock :: Genre -> Lock -> IO ()
-askLock gen lock = do
+askL :: Genre -> Lock -> IO ()
+askL gen lock = do
 
   jg <- takeMVar (genre lock) -- Get genre
   case jg of
 
     Nothing -> do -- New Case, enter
+      takeMVar (empty lock) -- Say its not empty
       modifyMVar_ (number lock) (return . const 1) -- Increase the lock
       putMVar (genre lock) (Just gen) -- Put the new genre
 
@@ -49,7 +61,7 @@ askLock gen lock = do
       then do -- Same subcase
         num <- takeMVar (number lock) -- Get number of people
 
-        if num < top -- Check if there is available space
+        if num < top gen -- Check if there is available space
           then do -- When available, enter
             putMVar (number lock) (num+1) -- Increase the number
             putMVar (genre lock) jg -- Put the genre back
@@ -67,12 +79,11 @@ askLock gen lock = do
         modifyMVar_ (genre lock) (return . const (Just gen)) -- Put the new genre
 
 -- Process the returning of a lock
-dropLock :: Lock -> IO ()
-dropLock lock = do
+dropL :: Lock -> IO ()
+dropL lock = do
 
-  jg <- takeMVar (genre lock) -- Get genre
+  jg@(Just gen) <- takeMVar (genre lock) -- Get genre
   num <- takeMVar (number lock) -- Get number
-
 
   if num == 1
     then do -- Emptying Case: Clean up, notify and leave
@@ -82,7 +93,7 @@ dropLock lock = do
       _ <- tryPutMVar (empty lock) ()-- Notify empty
       return ()
 
-    else if num == top
+    else if num == top gen
       then do -- Freeing case: Lower, notify and leave
         putMVar (number lock) (num-1)-- Lower number
         putMVar (genre lock) jg-- Put back genre

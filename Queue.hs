@@ -1,46 +1,86 @@
 module Queue
-( newQueue
-, increaseQueue
-, decreaseQueue
+( runClassic
 ) where
 
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.Chan
-import Control.Monad (replicateM_)
+
+import Control.Monad (replicateM_, forever)
 import Test.QuickCheck (generate)
 
 import Person
-import Locks
+import Lock
 
--- DATA TYPES
+---- CONSTANTS
+
+qSize :: Int
+qSize = 5
+
+---- DATA TYPES
 
 type Queue = Chan Person
 
 ---- QUEUE FUNCTIONS
 
-initSizeQueue :: Int
-initSizeQueue = 10
+-- Creates a new queue (with a broadcast duplicate) with an qSize initial load of random persons
+newQs :: IO (Queue, Queue)
+newQs = do
+  q <- newChan
+  dup <- dupChan q
+  replicateM_ qSize $ addQ q
+  return (q, dup)
 
-newQueue :: IO Queue
-newQueue = do
-  queue <- newChan
-  replicateM_ initSizeQueue $ increaseQueue queue
-  return queue
-
-increaseQueue :: Queue -> IO ()
-increaseQueue q = do
+-- Adds a new random person to the queue following the queue rules
+addQ :: Queue -> IO ()
+addQ q = do
   pers <- generate genPerson
   case pers of
-    -- Clean personnel is abusive
-    p@(Person Clean _) -> unGetChan q p
-    p                  -> writeChan q p
+    p@(Person Clean _ _) -> unGetChan q p -- Clean personnel is abusive
+    p                    -> writeChan q p
 
-decreaseQueue :: Queue -> Locks -> IO ()
-decreaseQueue q l = do
-  person <- readChan q
+-- Pops the next person from the queue, process it, and add a new one to the queue
+stepQ :: Queue -> Lock -> IO ()
+stepQ q l = do
+  p <- readChan q
+  processPerson l p
+  addQ q
 
-  let process (Person _ action) = forkIO $ action l
-  _ <- process person
+-- Process a person trying to enter the bathroom, blocking if not possible,
+-- sending the activity over a new thread when ready
+processPerson :: Lock -> Person -> IO ()
+processPerson l p = do
+  askL (genre p) l
+  _ <- forkIO $ do
+    action p
+    dropL l
+  return ()
 
-  increaseQueue q
-  decreaseQueue q l
+-- Given a report channel and a lock, report the status of the bathroom
+report :: Queue -> Lock -> IO ()
+report rep lock = forever $ do
+  (gen, num) <- infoL lock
+  putStrLn $ pretty gen num
+
+  ----------------------------------------------------------------
+  -- TEACHER NOTE: the queue (Chan) state should be reported here,
+  -- but I couldn't make it work properly.
+
+  threadDelay 300000 -- 0.3 Seconds
+
+  where
+    pretty Nothing _ = "No hay nadie ahorita."
+    pretty (Just Man) 1 = "Hay " ++ "1" ++ " hombre  actualmente."
+    pretty (Just Man) num = "Hay " ++ show num ++ " hombres actualmente."
+    pretty (Just Woman) 1 = "Hay " ++ "1" ++ " mujer   actualmente."
+    pretty (Just Woman) num = "Hay " ++ show num ++ " mujeres actualmente."
+    pretty (Just Clean) _ = "Ahorita se encuentra el personal de limpieza."
+
+runClassic :: IO ()
+runClassic = do
+  putStrLn "VERSION UTILIZADON MVAR Y TCHAN"
+
+  (queue, dup) <- newQs
+  lock <- newL
+
+  _ <- forkIO $ report dup lock
+  forever $ stepQ queue lock
