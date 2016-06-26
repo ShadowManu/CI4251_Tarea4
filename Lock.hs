@@ -1,3 +1,12 @@
+{- |
+Module: $Header$
+Copyright: (c) Manuel Pacheco 2016
+License: MIT
+Maintainer: manuelalejandropm@gmail.com
+Implementation of a custom bathroom lock for people to try enter and leave
+a bathroom, blocking the thread when necessary
+-}
+
 module Lock
 ( Lock(Lock)
 , newL

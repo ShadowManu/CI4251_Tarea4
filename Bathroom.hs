@@ -1,3 +1,11 @@
+{- |
+Module: $Header$
+Copyright: (c) Manuel Pacheco 2016
+License: MIT
+Maintainer: manuelalejandropm@gmail.com
+Main module of the bathroom excercise
+-}
+
 import System.Environment (getArgs)
 
 import Queue (runClassic)

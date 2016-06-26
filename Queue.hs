@@ -1,3 +1,11 @@
+{- |
+Module: $Header$
+Copyright: (c) Manuel Pacheco 2016
+License: MIT
+Maintainer: manuelalejandropm@gmail.com
+Queueing and classic syncing operations for a bathroom implementation
+-}
+
 module Queue
 ( runClassic
 ) where
@@ -77,7 +85,7 @@ report rep lock = forever $ do
 
 runClassic :: IO ()
 runClassic = do
-  putStrLn "VERSION UTILIZADON MVAR Y TCHAN"
+  putStrLn "VERSION UTILIZANDO MVAR Y TCHAN"
 
   (queue, dup) <- newQs
   lock <- newL

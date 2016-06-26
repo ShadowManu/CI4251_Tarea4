@@ -1,3 +1,11 @@
+{- |
+Module: $Header$
+Copyright: (c) Manuel Pacheco 2016
+License: MIT
+Maintainer: manuelalejandropm@gmail.com
+Type and Operations of a custom person datatype
+-}
+
 module Person
 ( Genre(Man, Woman, Clean)
 , Person(Person)
